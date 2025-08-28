@@ -8,7 +8,7 @@ from utils import ACT2FN, BaseModel
 from .config_gpt2 import GPT2Config
 
 # Name          Param Layers Embd
-# GPT-2 small	117M	12	 768
+# GPT-2 small	125M	12	 768
 # GPT-2 medium	345M	24	 1024
 # GPT-2 large	762M	36	 1280
 # GPT-2 xl	    1542M	48	 1600
