@@ -2,8 +2,11 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+"""
+Taken from the minGPT repo.
+"""
 class LayerNorm(nn.Module):
-    """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
+    """ LayerNorm but with an optional bias. """
 
     def __init__(self, ndim, eps, bias=False):
         super().__init__()
