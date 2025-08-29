@@ -17,7 +17,7 @@ class GPT1Attention(nn.Module):
         self.n_head = config.n_head
         self.attn_pdrop = config.attn_pdrop
         self.head_dim = self.n_embd // self.n_head # 768/12 = 64 For each head
-        self.scaling = (1.0 / math.sqrt(self.head_dim)) # config.head_dim ** -0.5
+        self.scaling = (1.0 / math.sqrt(self.head_dim))
 
         # query, key and value in single layer
         self.c_attn = Conv1D(3 * config.n_embd, config.n_embd)
