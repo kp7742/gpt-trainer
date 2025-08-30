@@ -135,7 +135,7 @@ class GPT1Model(BaseModel):
         # idx is of shape (B, T)
         T = input_ids.size(1)
         assert T <= self.config.n_positions, f"Cannot forward sequence of length {T}, block size is only {self.config.n_positions}"
-        position_ids = self.position_ids[None, : T]
+        position_ids = self.position_ids[None, :T]
 
         inputs_embeds = self.tokens_embed(input_ids) # token embeddings of shape (B, T, n_embd)
         position_embeds = self.positions_embed(position_ids) # position embeddings of shape (T, n_embd)
@@ -146,9 +146,10 @@ class GPT1Model(BaseModel):
         for block in self.h:
             x = block(x)
 
-        logits = self.lm_head(x)
-
         if labels is not None:
+            # if we are given some desired targets also calculate the loss
+            logits = self.lm_head(x)
+
             # Upcast to float if we need to compute the loss to avoid potential precision issues
             logits = logits.float()
 
@@ -165,6 +166,8 @@ class GPT1Model(BaseModel):
 
             loss = F.cross_entropy(shift_logits, shift_labels, ignore_index=ignore_index)
         else:
+            # inference-time mini-optimization: only forward the lm_head on the very last position
+            logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
             loss = None
 
         return logits, loss
