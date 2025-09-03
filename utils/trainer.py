@@ -38,6 +38,10 @@ class TrainerConfig(PreConfig):
         log_interval=500,
         eval_interval=2000,
         sample_interval=1000,
+        sample_size=1024,
+        sample_top_k=None,
+        sample_temperature=1.0,
+        sample_prompt="Lily and Tom were playing in the yard",
         compile=False,
         mix_prec=False,
         dtype=torch.float32,
@@ -61,6 +65,10 @@ class TrainerConfig(PreConfig):
         self.log_interval = log_interval
         self.eval_interval = eval_interval
         self.sample_interval = sample_interval
+        self.sample_size = sample_size
+        self.sample_top_k = sample_top_k
+        self.sample_temperature = sample_temperature
+        self.sample_prompt = sample_prompt
         self.compile = compile
         self.mix_prec = mix_prec
         self.dtype = dtype
@@ -234,67 +242,6 @@ class Trainer:
         self.model.train()
         return out
 
-    # @torch.no_grad()
-    # def generate(self, prompt="Hello, I'm a language model,", size=200, temperature=0.60, top_k=25, samples=None):
-    #     self.model.eval()
-
-    #     enc_prompt = self.tokenizer.encode(prompt)
-
-    #     input_ids = torch.tensor(enc_prompt, dtype=torch.long)
-
-    #     input_ids = input_ids.unsqueeze(0)
-
-    #     if samples:
-    #         input_ids = input_ids.repeat(samples, 1)
-
-    #     input_ids = input_ids.to(self.device)
-
-    #     for _ in range(size):
-    #         # if the sequence context is growing too long we must crop it at block_size
-    #         curr_ids = input_ids if input_ids.size(1) <= self.config.context_size else input_ids[:, -self.config.context_size:]
-    #         # forward the model to get the logits for the index in the sequence
-    #         logits, _ = self.model(curr_ids) # (B, T, vocab_size)
-    #         if "cuda" in self.device:
-    #             torch.cuda.synchronize() # wait for the GPU to finish work
-    #         # pluck the logits at the last step and scale by desired temperature
-    #         logits = logits[:, -1, :] / temperature # (B, vocab_size)
-    #         # apply softmax to get probabilities
-    #         probs = F.softmax(logits, dim=-1)
-    #         # do top-k sampling of 50 (huggingface pipeline default)
-    #         # topk_probs here becomes (5, 50), topk_indices is (5, 50)
-    #         topk_probs, topk_indices = torch.topk(probs, top_k, dim=-1)
-    #         # select a token from the top-k probabilities
-    #         # note: multinomial does not demand the input to sum to 1
-    #         ix = torch.multinomial(topk_probs, 1) # (B, 1)
-    #         # gather the corresponding indices
-    #         idx_next = torch.gather(topk_indices, -1, ix) # (B, 1)
-    #         # end of text found
-    #         # if idx_next[0] == tokenizer.eos_token_id:
-    #         #     break
-    #         # append sampled index to the running sequence
-    #         input_ids = torch.cat((input_ids, idx_next), dim=1)
-
-    #     if samples:
-    #         # Display Samples
-    #         for i in range(samples):
-    #             tokens = input_ids[i, :size].tolist()
-    #             try:
-    #                 eos_idx = tokens.index(self.tokenizer.eos_token_id)
-    #                 tokens = tokens[:eos_idx]
-    #             except ValueError:
-    #                 pass
-    #             decoded = self.tokenizer.decode(tokens)
-    #             print(">", decoded, "\n")
-    #     else:
-    #         tokens = input_ids[0, :size].tolist()
-    #         try:
-    #             eos_idx = tokens.index(self.tokenizer.eos_token_id)
-    #             tokens = tokens[:eos_idx]
-    #         except ValueError:
-    #             pass
-    #         decoded = self.tokenizer.decode(tokens)
-    #         return decoded
-
     def train(self):
         scaler = None
         if self.config.mix_prec:
@@ -383,8 +330,9 @@ class Trainer:
                     print('Sample')
                     print('----\n{}\n----\n'.format(
                         self.model.generate(
-                            self.device, self.tokenizer, context_size=self.config.context_size, 
-                            prompt="Lily and Tom were playing in the yard")))
+                            self.device, self.tokenizer, context_size=self.config.context_size,
+                            prompt=self.config.sample_prompt, size=self.config.sample_size,
+                            temperature=self.config.sample_temperature, top_k=self.config.sample_top_k)))
                     self.model.train()
 
             epoch_loss = epoch_loss / self.effective_steps
@@ -401,8 +349,9 @@ class Trainer:
         print('Sample')
         print('----\n{}\n----\n'.format(
             self.model.generate(
-                self.device, self.tokenizer, context_size=self.config.context_size, 
-                prompt="Lily and Tom were playing in the yard")))
+                self.device, self.tokenizer, context_size=self.config.context_size,
+                prompt=self.config.sample_prompt, size=self.config.sample_size,
+                temperature=self.config.sample_temperature, top_k=self.config.sample_top_k)))
 
     def save_model(self, path):
         torch.save(self.model.state_dict(), path)
