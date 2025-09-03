@@ -57,7 +57,7 @@ def main():
     n_epochs = 1
     micro_batch = 32
     learning_rate = 6e-4
-    max_steps = 8000 # len(train_dataloader)
+    max_steps = 32000 # len(train_dataloader)
     total_rows = len(tinystories_ds["train"])
     effective_steps = max_steps // micro_batch
 
@@ -104,6 +104,9 @@ def main():
         adam_beta2=0.95,
         adam_eps=1e-08,
         weight_decay=1e-1,
+        log_interval=10,
+        eval_interval=500,
+        sample_interval=100,
         dtype=dtype
     )
 
