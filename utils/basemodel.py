@@ -32,7 +32,9 @@ class BaseModel(nn.Module):
             if "cuda" in device:
                 torch.cuda.synchronize() # wait for the GPU to finish work
             # pluck the logits at the last step and scale by desired temperature
-            logits = logits[:, -1, :] / temperature # (B, vocab_size)
+            logits = logits[:, -1, :]
+            if temperature is not None:
+                logits = logits / temperature # (B, vocab_size)
             # optionally crop the logits to only the top k options
             if top_k is not None:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
@@ -41,18 +43,18 @@ class BaseModel(nn.Module):
             probs = F.softmax(logits, dim=-1)
             # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1)
+            # append sampled index to the running sequence
+            input_ids = torch.cat((input_ids, idx_next), dim=1)
             # end of text found
             if idx_next[0] == tokenizer.eos_token_id:
                 break
-            # append sampled index to the running sequence
-            input_ids = torch.cat((input_ids, idx_next), dim=1)
 
-        # tokens = input_ids[0, :size].tolist()
-        # try:
-        #     eos_idx = tokens.index(tokenizer.eos_token_id)
-        #     tokens = tokens[:eos_idx]
-        # except ValueError:
-        #     pass
-        # decoded = tokenizer.decode(tokens)
-        decoded = tokenizer.decode(input_ids[0].tolist())
+        tokens = input_ids[0, :size].tolist()
+        try:
+            eos_idx = tokens.index(tokenizer.eos_token_id)
+            tokens = tokens[:eos_idx]
+        except ValueError:
+            pass
+        decoded = tokenizer.decode(tokens)
+        # decoded = tokenizer.decode(input_ids[0].tolist())
         return decoded
