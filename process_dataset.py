@@ -12,7 +12,7 @@ print(f"Using {cpu_count} CPU cores | {num_workers} Workers | {context_size} Con
 tinystories_ds = load_dataset("noanabeshima/TinyStoriesV2", split="train")
 print(tinystories_ds, '\n')
 
-tinystories_ds = tinystories_ds.train_test_split(test_size=0.02, shuffle=True)
+tinystories_ds = tinystories_ds.train_test_split(test_size=1000, shuffle=True)
 print(tinystories_ds, '\n')
 
 tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
@@ -23,9 +23,9 @@ tokenizer.model_max_length = 1024
 print(tokenizer, '\n')
 
 def tokenize_pretrain(examples):
-    # max_length=context_size, padding=False, truncation=True,
+    # max_length=context_size, padding='max_length', truncation=True
     text = [f"{s.strip()}{tokenizer.eos_token}" for s in examples['text']]
-    return tokenizer(text, max_length=context_size, padding=False, truncation=True, return_token_type_ids=False, return_overflowing_tokens=False, return_length=False)
+    return tokenizer(text, max_length=context_size, padding='max_length', truncation=True, return_token_type_ids=False, return_overflowing_tokens=False, return_length=False)
 
 tok_pretrain_ds = tinystories_ds.map(tokenize_pretrain, batched=True, num_proc=num_workers, remove_columns=['text'])
 print(tok_pretrain_ds, '\n')
