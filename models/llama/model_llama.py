@@ -185,6 +185,7 @@ class LlamaModel(BaseModel):
 
         h = self.tok_embeddings(input_ids)
 
+        self.freqs_cis = self.freqs_cis.to(h.device)
         freqs_cis = self.freqs_cis[:T]
 
         mask = None
