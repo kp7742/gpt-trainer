@@ -41,7 +41,7 @@ class TrainerConfig(PreConfig):
         sample_size=1024,
         sample_top_k=None,
         sample_temperature=1.0,
-        sample_prompt="Lily and Tom were playing in the yard",
+        sample_prompt="Lily and Tom were playing in the yard.",
         compile=False,
         mix_prec=False,
         dtype=torch.float32,
