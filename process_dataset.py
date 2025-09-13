@@ -19,6 +19,8 @@ tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
 
 tokenizer.padding_side = "right"
 tokenizer.model_max_length = 1024
+if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
 print(tokenizer, '\n')
 

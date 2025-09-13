@@ -27,10 +27,6 @@ def main():
     dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() \
         else torch.float16 if 'cuda' in device else torch.float32
 
-    tinystories_ds = load_from_disk("data/pretraining_ds")
-    print(tinystories_ds)
-    print()
-
     tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
 
     tokenizer.padding_side = "right"
@@ -39,6 +35,10 @@ def main():
         tokenizer.pad_token = tokenizer.eos_token
 
     print(tokenizer)
+    print()
+    
+    tinystories_ds = load_from_disk("data/pretraining_ds")
+    print(tinystories_ds)
     print()
 
     data_collator = DataCollatorForLanguageModeling(
@@ -71,6 +71,7 @@ def main():
 
     model_config = LlamaConfig()
 
+    model_config.max_position_embeddings = context_size
     model_config.vocab_size = tokenizer.vocab_size
     model_config.hidden_size = 256
     model_config.intermediate_size = 2 * model_config.hidden_size
