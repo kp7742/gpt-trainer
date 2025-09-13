@@ -22,7 +22,7 @@ class GPT2Attention(nn.Module):
         self.n_head = config.n_head
         self.attn_pdrop = config.attn_pdrop
         self.head_dim = self.n_embd // self.n_head # 768/12 = 64 For each head
-        self.scaling = (1.0 / math.sqrt(self.head_dim)) # config.head_dim ** -0.5
+        self.scaling = self.head_dim ** -0.5
 
         # query, key and value in single layer
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
@@ -36,7 +36,7 @@ class GPT2Attention(nn.Module):
         if not self.flash:
             # causal mask to ensure that attention is only applied to the left in the input sequence
             self.register_buffer(
-                "bias",
+                "mask",
                 torch.tril(torch.ones(config.n_positions, config.n_positions)).view(
                     1, 1, config.n_positions, config.n_positions
                 ),
