@@ -94,7 +94,7 @@ class LlamaAttention(nn.Module):
                 scale=self.scaling,
                 attn_mask=attention_mask,
                 dropout_p=0.0 if not self.training else self.attention_dropout,
-                enable_gqa=self.num_key_value_groups == 1
+                enable_gqa=self.num_key_value_groups > 1
             )
         else:
             xk = repeat_kv(xk, self.num_key_value_groups)
@@ -119,12 +119,13 @@ class LlamaMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.act_fn    = ACT2FN[config.hidden_act]()
-        self.up_proj   = nn.Linear(config.hidden_size, config.intermediate_size, bias=config.mlp_bias)
         self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=config.mlp_bias)
+        self.up_proj   = nn.Linear(config.hidden_size, config.intermediate_size, bias=config.mlp_bias)
         self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=config.mlp_bias)
 
     def forward(self, x):
-        return self.down_proj(self.act_fn(self.up_proj(x)) * self.gate_proj(x))
+        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+        return down_proj
 
 
 class LlamaDecoder(nn.Module):
@@ -133,13 +134,13 @@ class LlamaDecoder(nn.Module):
         self.layer_idx = layer_idx
 
         self.attention = LlamaAttention(config)
-        self.feed_forward = LlamaMLP(config)
+        self.mlp = LlamaMLP(config)
         self.attention_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.ffn_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.mlp_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
-    def forward(self, x, mask, freqs_cis):
-        h = x + self.attention(self.attention_norm(x), mask, freqs_cis)
-        out = h + self.feed_forward(self.ffn_norm(h))
+    def forward(self, x, attention_mask, freqs_cis):
+        h = x + self.attention(self.attention_norm(x), attention_mask, freqs_cis)
+        out = h + self.mlp(self.mlp_norm(h))
         return out
 
 
