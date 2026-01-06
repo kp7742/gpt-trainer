@@ -27,7 +27,7 @@ def main():
     dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() \
         else torch.float16 if 'cuda' in device else torch.float32
 
-    tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
+    tokenizer = AutoTokenizer.from_pretrained("PleIAs/Monad")
 
     tokenizer.padding_side = "right"
     tokenizer.model_max_length = 1024

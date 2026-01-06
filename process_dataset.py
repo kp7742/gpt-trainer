@@ -15,12 +15,12 @@ print(tinystories_ds, '\n')
 tinystories_ds = tinystories_ds.train_test_split(test_size=1000, shuffle=True)
 print(tinystories_ds, '\n')
 
-tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
+tokenizer = AutoTokenizer.from_pretrained("PleIAs/Monad")
 
 tokenizer.padding_side = "right"
 tokenizer.model_max_length = 1024
 if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token = tokenizer.eos_token
 
 print(tokenizer, '\n')
 
