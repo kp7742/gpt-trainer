@@ -21,7 +21,7 @@ def main():
     print(f"Using {device} device")
     print()
 
-    batch_size = 1
+    batch_size = 16
     context_size = 1024
     device_count = torch.cuda.device_count() if torch.cuda.device_count() > 0 else 1
     dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() \
@@ -30,7 +30,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained("PleIAs/Monad")
 
     tokenizer.padding_side = "right"
-    tokenizer.model_max_length = 1024
+    tokenizer.model_max_length = context_size
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -55,19 +55,24 @@ def main():
 
     # Training Config
     n_epochs = 1
-    micro_batch = 32
     learning_rate = 8e-3
-    max_steps = 32000 # len(train_dataloader)
-    total_rows = len(tinystories_ds["train"])
-    effective_steps = max_steps // micro_batch
-
-    warmup_steps = int(effective_steps * 0.1) # 2000
-    lr_decay_iters = effective_steps - warmup_steps
     min_learning_rate = learning_rate * 0.1
 
-    print(f"Effective Steps: {effective_steps}")
-    print(f"Estimated Total Steps: {total_rows // (batch_size * micro_batch * device_count)}")
-    print(f"Effective Batch Size: {(context_size * batch_size * micro_batch * device_count)}\n")
+    final_batch = 512 # 512 with 2048 context, ~1.05M
+    micro_batch = int(final_batch / batch_size)
+
+    total_rows = 512000 * 2 # ~2B tokens # len(tinystories_ds["train"])
+    total_tokens = total_rows * context_size
+
+    total_steps = int(total_rows // (batch_size * micro_batch))
+    warmup_steps = int(total_steps * 0.1) # 2000
+    lr_decay_iters = total_steps - warmup_steps
+
+    print(f"Effective Steps: {total_steps}")
+    print(f"Estimated Tokens: {total_tokens/10**12:.2f}T | {total_tokens/10**9:.2f}B | {total_tokens/10**6:.2f}M")
+    # print(f"Estimated Total Steps: {total_rows // (batch_size * micro_batch * device_count)}")
+    print(f"Effective Batch Size: {(context_size * batch_size * micro_batch * device_count)/1000**2:.2f}M")
+    print()
 
     model_config = LlamaConfig()
 
@@ -88,12 +93,14 @@ def main():
 
     model.to(dtype=dtype)
 
-    model_size = sum(t.numel() for n, t in model.named_parameters() if t.requires_grad and "tok_embeddings" not in n)
-    total_model_size = sum(t.numel() for t in model.parameters() if t.requires_grad)
+    model_size1 = sum(t.numel() for _, t in model.state_dict().items())
+    model_size2 = sum(t.numel() for n, t in model.state_dict().items() if "tok_embeddings" not in n)
+    model_size3 = sum(t.numel() for n, t in model.named_parameters() if t.requires_grad and "tok_embeddings" not in n)
     print(f"Model dtype: {dtype}")
-    print(f"Model size: {total_model_size}, {model_size} | {total_model_size/1000**2:.1f}M Total | {model_size/1000**2:.1f}M w/o Embd\n")
+    print(f"Model size: {model_size1}, {model_size2}, {model_size3} | {model_size1/1000**2:.1f}M Total | {model_size2/1000**2:.1f}M w/o Embd | {model_size3/1000**2:.1f}M w/o Embd(Tie)")
+    print()
 
-    ids = torch.randint(0, context_size, size=(1, context_size), dtype=torch.int64)
+    ids = torch.randint(0, context_size, size=(batch_size, context_size), dtype=torch.int64)
     print(f"Test Data: {ids.size()}\n")
 
     summary(model, input_data=(ids,))
@@ -107,7 +114,7 @@ def main():
         learning_rate=learning_rate,
         min_learning_rate=min_learning_rate,
         lr_decay_iters=lr_decay_iters,
-        max_steps=max_steps,
+        max_steps=total_steps,
         warmup_steps=warmup_steps,
         adam_beta1=0.9,
         adam_beta2=0.95,
@@ -132,7 +139,7 @@ def main():
 
     trainer.train()
 
-    # trainer.save_model("gpt2_model.pt")
+    # trainer.save_model("llama_model.pt")
 
 if __name__ == "__main__":
     main()
