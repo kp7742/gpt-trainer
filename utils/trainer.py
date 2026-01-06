@@ -34,7 +34,6 @@ class TrainerConfig(PreConfig):
         adam_eps=1e-8,
         grad_clip=1.0,
         weight_decay=0.1,
-        eval_iters=1000,
         log_interval=500,
         eval_interval=2000,
         sample_interval=1000,
@@ -61,7 +60,6 @@ class TrainerConfig(PreConfig):
         self.adam_eps = adam_eps
         self.grad_clip = grad_clip
         self.weight_decay = weight_decay
-        self.eval_iters = eval_iters
         self.log_interval = log_interval
         self.eval_interval = eval_interval
         self.sample_interval = sample_interval
@@ -86,7 +84,6 @@ class Trainer:
         self.model = model
         self.config = config
         self.tokenizer = tokenizer
-        self.effective_steps = self.config.max_steps // self.config.micro_batch
 
         self.device = (
             "cuda"
@@ -197,10 +194,12 @@ class Trainer:
     def estimate_loss(self):
         out = {}
         self.model.eval()
+        eval_iters = len(self.test_dataloader)
+
         # Few Training Samples
-        losses = torch.zeros(self.config.eval_iters)
+        losses = torch.zeros(eval_iters)
         train_batch = iter(self.train_dataloader)
-        for s in tqdm.tqdm(range(self.config.eval_iters), desc="Training Eval"):
+        for s in tqdm.tqdm(range(eval_iters), desc="Training Eval"):
             input, target = self.get_batch(train_batch)
 
             with self.auto_ctx:
@@ -213,10 +212,9 @@ class Trainer:
         out['train'] = losses.mean()
 
         # All Test Samples
-        test_iter = self.config.eval_iters
-        losses = torch.zeros(test_iter)
+        losses = torch.zeros(eval_iters)
         test_batch = iter(self.test_dataloader)
-        for s in tqdm.tqdm(range(test_iter), desc="Testing Eval"):
+        for s in tqdm.tqdm(range(eval_iters), desc="Testing Eval"):
             input, target = self.get_batch(test_batch)
 
             with self.auto_ctx:
@@ -229,10 +227,10 @@ class Trainer:
         out['test'] = losses.mean()
 
         # PPL of model
-        ppls = torch.zeros(test_iter)
+        ppls = torch.zeros(eval_iters)
         test_batch = iter(self.test_dataloader)
 
-        for s in tqdm.tqdm(range(test_iter), desc="Testing PPL"):
+        for s in tqdm.tqdm(range(eval_iters), desc="Testing PPL"):
             input_ids, target_ids = self.get_batch(test_batch)
 
             ppls[s] = self.cal_ppl(input_ids, target_ids)
@@ -267,7 +265,7 @@ class Trainer:
 
             input, target = self.get_batch(train_batch)
 
-            for step in tqdm.tqdm(range(self.effective_steps), desc="GPT Training"):
+            for step in tqdm.tqdm(range(self.config.max_steps), desc="GPT Training"):
                 curr_step = time.time()
 
                 lr = self.get_lr(step)
@@ -292,18 +290,18 @@ class Trainer:
                     input, target = self.get_batch(train_batch)
 
                     # backward pass
-                    if scaler:
+                    if self.config.mix_prec:
                         scaler.scale(loss).backward()
                     else:
                         loss.backward()
 
                 # clip the gradient
                 if self.config.grad_clip != 0.0:
-                    if scaler:
+                    if self.config.mix_prec:
                         scaler.unscale_(optimizer)
                     nn.utils.clip_grad_norm_(self.model.parameters(), self.config.grad_clip)
 
-                if scaler:
+                if self.config.mix_prec:
                     scaler.step(optimizer)
                     scaler.update()
                 else:
@@ -320,7 +318,7 @@ class Trainer:
                 epoch_loss += lossf
 
                 if step % self.config.log_interval == 0:
-                    print("Step: {} {:.2f} |".format(timeSince(curr_epoch, step / self.effective_steps), step / self.effective_steps * 100),
+                    print("Step: {} {:.2f} |".format(timeSince(curr_epoch, step / self.config.max_steps), step / self.config.max_steps * 100),
                         "Loss: {:.4f} |".format(lossf),
                         "PPL: {:.4f} |".format(self.cal_ppl(input, target)),
                         "DT: {} |".format(timePassed(curr_step)),
@@ -335,7 +333,7 @@ class Trainer:
                             temperature=self.config.sample_temperature, top_k=self.config.sample_top_k)))
                     self.model.train()
 
-            epoch_loss = epoch_loss / self.effective_steps
+            epoch_loss = epoch_loss / self.config.max_steps
 
             print("Epoch: {} {:.2f} |".format(timeSince(start, epoch / self.config.n_epochs), epoch / self.config.n_epochs * 100),
                 "Loss: {:.4f}".format(epoch_loss), '\n')
